@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wb86-pose-pipeline"
+version = "0.1.0"
+description = "Whole-Body 86-Keypoint Extraction Pipeline (BODY_25 + hands + face)"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "Your Name" }
+]
+license = { text = "Proprietary" }
+keywords = ["pose", "keypoints", "wholebody", "openpose", "mmpose", "yolov8"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: Other/Proprietary License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "numpy>=1.23",
+  "opencv-python>=4.7",
+  "scipy>=1.9",
+  "PyYAML>=6.0",
+  "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+detect = [
+  "ultralytics>=8.0.0",
+  "torch>=2.0.0; platform_system != 'Windows' or platform_machine != 'ARM64'",
+]
+wholebody = [
+  "mmpose>=1.2.0",
+  "mmengine>=0.10.0",
+  "mmcv>=2.0.0",
+]
+
+[project.scripts]
+wb86 = "wb86.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["wb86*"]
+exclude = []
+

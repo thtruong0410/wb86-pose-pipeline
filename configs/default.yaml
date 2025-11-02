@@ -1,0 +1,24 @@
+# Default configuration for wb86 pipeline
+detector: yolov8n.pt
+detector_conf: 0.3
+wholebody_model: rtmpose-wholebody
+hand_model: rtmpose-hand
+face_model: rtmpose-face
+
+apply_clahe: true
+clahe_clip: 2.0
+clahe_grid: 8
+denoise: false
+upscale_factor: 2.0
+
+roi_pad_face: 1.6
+roi_size_hand: 120.0
+
+smooth: true
+smooth_fps: 25.0
+smooth_min_cutoff: 1.0
+smooth_beta: 0.0
+smooth_d_cutoff: 1.0
+
+bbox_score_thresh: 0.3
+
