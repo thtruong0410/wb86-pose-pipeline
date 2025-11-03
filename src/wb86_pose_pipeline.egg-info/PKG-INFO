@@ -1,0 +1,90 @@
+Metadata-Version: 2.4
+Name: wb86-pose-pipeline
+Version: 0.1.0
+Summary: Whole-Body 86-Keypoint Extraction Pipeline (BODY_25 + hands + face)
+Author: Your Name
+License: Proprietary
+Keywords: pose,keypoints,wholebody,openpose,mmpose,yolov8
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.23
+Requires-Dist: opencv-python>=4.7
+Requires-Dist: scipy>=1.9
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: tqdm>=4.65
+Provides-Extra: detect
+Requires-Dist: ultralytics>=8.0.0; extra == "detect"
+Requires-Dist: torch>=2.0.0; (platform_system != "Windows" or platform_machine != "ARM64") and extra == "detect"
+Provides-Extra: wholebody
+Requires-Dist: mmpose>=1.2.0; extra == "wholebody"
+Requires-Dist: mmengine>=0.10.0; extra == "wholebody"
+Requires-Dist: mmcv>=2.0.0; extra == "wholebody"
+Provides-Extra: mp
+Requires-Dist: mediapipe>=0.10.0; extra == "mp"
+Requires-Dist: realesrgan>=0.3.0; extra == "mp"
+Requires-Dist: Pillow>=9.0; extra == "mp"
+
+Whole-Body 86-Keypoint Extraction Pipeline (wb86)
+
+Overview
+- Extracts 86 OpenPose-style keypoints without training: BODY_25 + 21 left hand + 21 right hand + 19 face.
+- Uses pretrained detectors (YOLOv8/RTMDet) and MMPose whole-body and region refiners.
+- Designed for ~256×256 inputs; applies optional upscaling, CLAHE, ROI refinement, and One-Euro smoothing.
+
+Install (base)
+- Python 3.9–3.12
+- pip install -e .
+
+Optional extras
+- Detection: pip install 'wb86-pose-pipeline[detect]'
+- WholeBody/Refine: pip install 'wb86-pose-pipeline[wholebody]'
+
+Quickstart
+- Single image (WB86/MMPose): wb86 --input path/to/image.jpg --out out/ --visualize
+- Directory (WB86/MMPose): wb86 --input path/to/dir --out out/ --visualize
+- Video (WB86/MMPose): wb86 --video path/to/video.mp4 --out out/frames
+
+MediaPipe Engine (MP86)
+- Use MediaPipe Holistic + optional SR upscaling (Real-ESRGAN preferred, bicubic fallback).
+- Example: wb86 --engine mp86 --input path/to/image.jpg --out out/ --visualize --scale 2 --sr-prefer realesrgan
+- Notes:
+  - MP86 returns a single-person result per image (MediaPipe Holistic is single-person).
+  - Face landmarks are optional in MP86 output (face-19 may be empty if mapping unavailable).
+
+Outputs
+- JSON per frame with 86×(x,y,conf), schema, boxes, rois, and meta.
+- Optional visualization overlays saved alongside JSON.
+
+Notes
+- Model weights resolved by MMPose/Ultralytics; see configs/default.yaml to adjust models, thresholds, and ROI paddings.
+- Tests skip at runtime if optional deps are missing.
+
+Pipeline Flow
+- Load image: read BGR image via OpenCV.
+- Preprocess: optional CLAHE (Lab-L), optional denoise, optional global upscale (×2 by default).
+- Person detection: YOLOv8 detects person boxes to normalize scale (configurable score threshold).
+- Whole-body pose: MMPose whole-body model predicts 133 keypoints + confidences.
+- ROI compute: derive face and left/right hand ROIs from whole-body keypoints; pad and clip to image.
+- ROI refinement: crop ROIs, optionally upscale, run face(68) and hand(21) models to refine landmarks.
+- Mapping: map 133→BODY_25; select face-19 from face-68; compose BODY_25 + hands + face-19 → 86.
+- Smoothing: One-Euro filter applied to coordinates (optional; uses fps, cutoff, beta from config).
+- Output: write per-person JSON; optionally render overlay image with skeleton and landmarks.
+
+Output Format
+- keypoints: list of 86 items, each [x, y, conf] (float; conf=0 when missing).
+- schema: list of 86 names in canonical order (see src/wb86/ops/mapping.py).
+- boxes: list of person bounding boxes [x1,y1,x2,y2] derived from keypoints.
+- rois: dictionary of auxiliary ROIs used for refinement: face, lhand, rhand.
+- meta: dictionary of runtime metadata (config, etc.).
+
+Example JSON (truncated)
+{
+  "keypoints": [[x, y, c], ..., [x, y, c]],
+  "schema": ["Nose", "Neck", ...],
+  "boxes": [[x1, y1, x2, y2]],
+  "rois": {"face": [x1, y1, x2, y2], "lhand": [..], "rhand": [..]},
+  "meta": {"config": {"detector": "yolov8n.pt", ...}}
+}

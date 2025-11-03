@@ -76,8 +76,8 @@ def body25_from_wholebody133(kps133: np.ndarray, conf133: np.ndarray | None = No
     return k25, c25
 
 
-def face19_from_face68(face68: np.ndarray) -> np.ndarray:
-    """Select 19 facial landmarks from iBUG-68 layout.
+def face19_from_face68(face68: np.ndarray, conf68: np.ndarray | None = None) -> Tuple[np.ndarray, np.ndarray | None]:
+    """Select 19 facial landmarks from iBUG-68 layout and confidences.
 
     Selected indices (0-based on 68):
     - Eyebrows: L(17,19,21), R(22,24,26)
@@ -86,35 +86,54 @@ def face19_from_face68(face68: np.ndarray) -> np.ndarray:
     - Mouth: left(48), right(54), top(51), bottom(57)
     """
     idx = [17, 19, 21, 22, 24, 26, 36, 39, 42, 45, 30, 31, 35, 48, 54, 51, 57, 27, 33]
-    return face68[idx]
+    if conf68 is None:
+        return face68[idx], None
+    return face68[idx], conf68[idx]
 
 
 def compose_wb86(
     body25: np.ndarray,
+    c_body25: np.ndarray | None,
     lhand21: np.ndarray | None,
+    c_lhand21: np.ndarray | None,
     rhand21: np.ndarray | None,
+    c_rhand21: np.ndarray | None,
     face68: np.ndarray | None,
+    c_face68: np.ndarray | None,
 ) -> Dict[str, np.ndarray]:
     """Compose the 86-keypoint vector from body25 + hands + face.
 
-    Each input is (N, 2) or None. Missing parts are filled with NaN.
-    Returns dict with 'keypoints' (86,2) and 'mask' (86,) for present joints.
+    Inputs:
+      - body25: (25,2), c_body25: (25,) or None
+      - lhand21/rhand21: (21,2) or None with confidences (21,) or None
+      - face68: (68,2) or None with confidences (68,) or None
+    Returns dict with 'keypoints' (86,3: x,y,conf) and 'mask' (86,) for present joints.
+    Missing parts are filled with NaN for xy and 0 for conf.
     """
-    out = np.full((86, 2), np.nan, dtype=float)
+    out = np.full((86, 3), np.nan, dtype=float)
+    out[:, 2] = 0.0
 
     # BODY_25
-    out[0:25] = body25
+    out[0:25, :2] = body25
+    if c_body25 is not None:
+        out[0:25, 2] = c_body25
 
     # Hands
     if lhand21 is not None:
-        out[25:46] = lhand21
+        out[25:46, :2] = lhand21
+        if c_lhand21 is not None:
+            out[25:46, 2] = c_lhand21
     if rhand21 is not None:
-        out[46:67] = rhand21
+        out[46:67, :2] = rhand21
+        if c_rhand21 is not None:
+            out[46:67, 2] = c_rhand21
 
     # Face-19
     if face68 is not None:
-        out[67:86] = face19_from_face68(face68)
+        f19, c19 = face19_from_face68(face68, c_face68)
+        out[67:86, :2] = f19
+        if c19 is not None:
+            out[67:86, 2] = c19
 
-    mask = ~np.isnan(out[:, 0])
+    mask = (~np.isnan(out[:, 0])) & (~np.isnan(out[:, 1]))
     return {"keypoints": out, "mask": mask.astype(np.uint8)}
-

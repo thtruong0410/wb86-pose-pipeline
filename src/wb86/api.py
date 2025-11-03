@@ -83,7 +83,8 @@ class WB86Pipeline:
 
     def _postprocess(self, img: np.ndarray, kps86: np.ndarray) -> np.ndarray:
         if self.smoother is not None:
-            kps86 = self.smoother(kps86)
+            xy = self.smoother(kps86[:, :2])
+            kps86[:, :2] = xy
         return kps86
 
     def _run_single(self, img_bgr: np.ndarray) -> List[Dict]:
@@ -98,7 +99,7 @@ class WB86Pipeline:
         for p in persons:
             k133 = p["keypoints133"]
             c133 = p.get("conf")
-            body25, _ = body25_from_wholebody133(k133, c133)
+            body25, c25 = body25_from_wholebody133(k133, c133)
 
             # ROIs
             face_roi = compute_face_roi(k133, (w, h), pad=self.cfg.roi_pad_face)
@@ -119,32 +120,49 @@ class WB86Pipeline:
             rhand_img = crop(rhand_roi)
 
             face68 = None
+            c_face = None
             if face_img is not None:
-                face68, _ = self.face_refiner.infer(face_img)
+                face68, c_face = self.face_refiner.infer(face_img)
                 # map back to full image coords
                 fx1, fy1, _, _ = face_roi
                 face68 = face68 + np.array([fx1, fy1])
 
             lhand21 = None
+            c_lhand = None
             if lhand_img is not None:
-                lhand21, _ = self.hand_refiner.infer(lhand_img)
+                lhand21, c_lhand = self.hand_refiner.infer(lhand_img)
                 lx1, ly1, _, _ = lhand_roi
                 lhand21 = lhand21 + np.array([lx1, ly1])
 
             rhand21 = None
+            c_rhand = None
             if rhand_img is not None:
-                rhand21, _ = self.hand_refiner.infer(rhand_img)
+                rhand21, c_rhand = self.hand_refiner.infer(rhand_img)
                 rx1, ry1, _, _ = rhand_roi
                 rhand21 = rhand21 + np.array([rx1, ry1])
 
-            comp = compose_wb86(body25, lhand21, rhand21, face68)
+            comp = compose_wb86(body25, c25, lhand21, c_lhand, rhand21, c_rhand, face68, c_face)
             kps86 = comp["keypoints"]
             kps86 = self._postprocess(proc, kps86)
+
+            # derive person box from whole-body keypoints
+            valid = ~np.isnan(k133[:, 0])
+            if np.any(valid):
+                mins = np.nanmin(k133[valid], axis=0)
+                maxs = np.nanmax(k133[valid], axis=0)
+                person_box = [float(mins[0]), float(mins[1]), float(maxs[0]), float(maxs[1])]
+            else:
+                person_box = [0.0, 0.0, float(w - 1), float(h - 1)]
 
             results.append({
                 "keypoints": kps86.tolist(),
                 "schema": KEYPOINT_NAMES_86,
-                "boxes": [list(map(float, d)) for d in [face_roi, lhand_roi, rhand_roi]],
+                "boxes": [person_box],
+                "rois": {
+                    "face": [float(x) for x in face_roi.tolist()],
+                    "lhand": [float(x) for x in lhand_roi.tolist()],
+                    "rhand": [float(x) for x in rhand_roi.tolist()],
+                },
                 "meta": {
                     "config": self.cfg.__dict__,
                 },
@@ -166,4 +184,3 @@ class WB86Pipeline:
                     vis = draw_wb86(img, np.array(r["keypoints"]))
                     cv2.imwrite(os.path.join(out_dir, f"{base}_person{i}.jpg"), vis)
         return res
-

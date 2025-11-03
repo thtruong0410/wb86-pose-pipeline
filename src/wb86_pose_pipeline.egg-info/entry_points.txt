@@ -1,0 +1,2 @@
+[console_scripts]
+wb86 = wb86.cli:main

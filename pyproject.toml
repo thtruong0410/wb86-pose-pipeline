@@ -36,6 +36,11 @@ wholebody = [
   "mmengine>=0.10.0",
   "mmcv>=2.0.0",
 ]
+mp = [
+  "mediapipe>=0.10.0",
+  "realesrgan>=0.3.0",
+  "Pillow>=9.0",
+]
 
 [project.scripts]
 wb86 = "wb86.cli:main"
@@ -47,4 +52,3 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["wb86*"]
 exclude = []
-

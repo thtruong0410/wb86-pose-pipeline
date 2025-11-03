@@ -14,15 +14,48 @@ Optional extras
 - WholeBody/Refine: pip install 'wb86-pose-pipeline[wholebody]'
 
 Quickstart
-- Single image: wb86 --input path/to/image.jpg --out out/ --visualize
-- Directory: wb86 --input path/to/dir --out out/ --visualize
-- Video: wb86 --video path/to/video.mp4 --out out/frames
+- Single image (WB86/MMPose): wb86 --input path/to/image.jpg --out out/ --visualize
+- Directory (WB86/MMPose): wb86 --input path/to/dir --out out/ --visualize
+- Video (WB86/MMPose): wb86 --video path/to/video.mp4 --out out/frames
+
+MediaPipe Engine (MP86)
+- Use MediaPipe Holistic + optional SR upscaling (Real-ESRGAN preferred, bicubic fallback).
+- Example: wb86 --engine mp86 --input path/to/image.jpg --out out/ --visualize --scale 2 --sr-prefer realesrgan
+- Notes:
+  - MP86 returns a single-person result per image (MediaPipe Holistic is single-person).
+  - Face landmarks are optional in MP86 output (face-19 may be empty if mapping unavailable).
 
 Outputs
-- JSON per frame with 86×(x,y,conf), schema, boxes, and meta.
+- JSON per frame with 86×(x,y,conf), schema, boxes, rois, and meta.
 - Optional visualization overlays saved alongside JSON.
 
 Notes
 - Model weights resolved by MMPose/Ultralytics; see configs/default.yaml to adjust models, thresholds, and ROI paddings.
 - Tests skip at runtime if optional deps are missing.
 
+Pipeline Flow
+- Load image: read BGR image via OpenCV.
+- Preprocess: optional CLAHE (Lab-L), optional denoise, optional global upscale (×2 by default).
+- Person detection: YOLOv8 detects person boxes to normalize scale (configurable score threshold).
+- Whole-body pose: MMPose whole-body model predicts 133 keypoints + confidences.
+- ROI compute: derive face and left/right hand ROIs from whole-body keypoints; pad and clip to image.
+- ROI refinement: crop ROIs, optionally upscale, run face(68) and hand(21) models to refine landmarks.
+- Mapping: map 133→BODY_25; select face-19 from face-68; compose BODY_25 + hands + face-19 → 86.
+- Smoothing: One-Euro filter applied to coordinates (optional; uses fps, cutoff, beta from config).
+- Output: write per-person JSON; optionally render overlay image with skeleton and landmarks.
+
+Output Format
+- keypoints: list of 86 items, each [x, y, conf] (float; conf=0 when missing).
+- schema: list of 86 names in canonical order (see src/wb86/ops/mapping.py).
+- boxes: list of person bounding boxes [x1,y1,x2,y2] derived from keypoints.
+- rois: dictionary of auxiliary ROIs used for refinement: face, lhand, rhand.
+- meta: dictionary of runtime metadata (config, etc.).
+
+Example JSON (truncated)
+{
+  "keypoints": [[x, y, c], ..., [x, y, c]],
+  "schema": ["Nose", "Neck", ...],
+  "boxes": [[x1, y1, x2, y2]],
+  "rois": {"face": [x1, y1, x2, y2], "lhand": [..], "rhand": [..]},
+  "meta": {"config": {"detector": "yolov8n.pt", ...}}
+}

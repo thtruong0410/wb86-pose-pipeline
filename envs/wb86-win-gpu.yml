@@ -1,0 +1,17 @@
+name: wb86
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1
+  - ffmpeg
+  - git
+  - pip:
+      - openmim>=0.3

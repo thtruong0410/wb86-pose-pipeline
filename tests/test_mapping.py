@@ -27,7 +27,6 @@ def test_compose_wb86_shapes():
     lhand = np.zeros((21, 2), dtype=float)
     rhand = np.zeros((21, 2), dtype=float)
     face68 = np.zeros((68, 2), dtype=float)
-    out = compose_wb86(body25, lhand, rhand, face68)
-    assert out["keypoints"].shape == (86, 2)
+    out = compose_wb86(body25, None, lhand, None, rhand, None, face68, None)
+    assert out["keypoints"].shape == (86, 3)
     assert out["mask"].shape == (86,)
-
